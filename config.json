@@ -1,7 +1,18 @@
 {
-  "cameraIp": "192.168.0.2",
-  "username": "admin",
-  "password": "Qwer1234",
-  "presets": [1, 2, 3, 4],
-  "intervalMs": 60000
+  "cameras": [
+    {
+      "cameraIp": "192.168.0.84",
+      "username": "admin",
+      "password": "Qwer1234",
+      "presets": [1, 2, 3 ],
+      "intervalMs": 60000
+    },
+    {
+      "cameraIp": "192.168.0.85",
+      "username": "admin",
+      "password": "Qwer1234",
+      "presets": [1, 2, 3 ],
+      "intervalMs": 60000
+    }
+  ]
 }

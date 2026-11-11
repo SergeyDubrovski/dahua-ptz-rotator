@@ -1,9 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const md5 = (str) => crypto.createHash('md5').update(str).digest('hex');
 
 // Универсальная функция отправки любой команды через нативный Digest Auth
@@ -34,46 +32,55 @@ async function sendCommand(config, uriPath) {
     return await secondResponse.text();
 }
 
-async function startQuizTour() {
-    const configPath = path.join(__dirname, 'config.json');
-    if (!fs.existsSync(configPath)) {
-        console.error('❌ Ошибка: Не найден config.json');
-        return;
-    }
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    
-    console.log(`=== Запуск автообхода Dahua для Квиз-Кафе ===`);
-    console.log(`Камера IP: ${config.cameraIp}`);
-    console.log(`Маршрут: ${config.presets.join(' -> ')}`);
-    console.log(`Интервал смены залов: ${config.intervalMs / 1000} сек.\n`);
-
+// Функция патрулирования для одной конкретной камеры
+async function runSingleCameraTour(cameraConfig) {
+    console.log(`🚀 Запущен поток патрулирования для камеры [${cameraConfig.cameraIp}]`);
     let currentIdx = 0;
 
-    // Бесконечный цикл патрулирования залов
     while (true) {
-        const preset = config.presets[currentIdx];
-        // Точечный CGI-путь для вызова пресета на новых Dahua
+        const preset = cameraConfig.presets[currentIdx];
         const ptzUri = `/cgi-bin/ptz.cgi?action=start&channel=1&code=GotoPreset&arg1=0&arg2=${preset}&arg3=0`;
 
         try {
-            const result = await sendCommand(config, ptzUri);
+            const result = await sendCommand(cameraConfig, ptzUri);
             
             if (result.toLowerCase().includes('ok')) {
-                console.log(`[${new Date().toLocaleTimeString()}] Успех: Переключено на Стол/Зал [Пресет ${preset}]`);
+                console.log(`[${new Date().toLocaleTimeString()}] [${cameraConfig.cameraIp}] Успех: Переключено на Пресет ${preset}`);
             } else {
-                console.log(`[${new Date().toLocaleTimeString()}] Предупреждение от камеры: ${result.trim()}`);
+                console.log(`[${new Date().toLocaleTimeString()}] [${cameraConfig.cameraIp}] Предупреждение от камеры: ${result.trim()}`);
             }
         } catch (error) {
-            console.error(`[${new Date().toLocaleTimeString()}] Ошибка сети при переключении на Пресет ${preset}:`, error.message);
+            console.error(`[${new Date().toLocaleTimeString()}] [${cameraConfig.cameraIp}] Сбой связи (Пресет ${preset}):`, error.message);
         }
 
-        // Считаем индекс следующего пресета
-        currentIdx = (currentIdx + 1) % config.presets.length;
-
-        // Спим заданное в конфиге время
-        await new Promise(resolve => setTimeout(resolve, config.intervalMs));
+        currentIdx = (currentIdx + 1) % cameraConfig.presets.length;
+        await new Promise(resolve => setTimeout(resolve, cameraConfig.intervalMs));
     }
 }
 
-startQuizTour();
+// Главная функция инициализации мульти-обхода
+async function startMultiQuizTour() {
+    // Ищем config.json строго в той папке, где лежит запущенный .exe
+    const configPath = path.join(process.cwd(), 'config.json');
+    
+    if (!fs.existsSync(configPath)) {
+        console.error(`❌ Ошибка: Не найден файл конфигурации config.json по пути: ${configPath}`);
+        return;
+    }
+
+    try {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        
+        console.log(`=== Запуск мульти-обхода Dahua для Квиз-Кафе ===`);
+        console.log(`Всего камер найдено в конфиге: ${config.cameras.length}\n`);
+
+        config.cameras.forEach(cameraConfig => {
+            runSingleCameraTour(cameraConfig);
+        });
+
+    } catch (parseError) {
+        console.error('❌ Ошибка при чтении или парсинге config.json:', parseError.message);
+    }
+}
+
+startMultiQuizTour();
